@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # fpm - fuzzy pacman wrapper using skim (sk)
-# Author: brunos3d
-# License: MIT
 set -euo pipefail
 
 cache_dir="/var/cache/pacman/pkg"
@@ -10,7 +8,7 @@ _sk() {
   local header="$1"; shift
   sk \
     --ansi \
-    --height 75% \
+    --height 40% \
     --reverse \
     --prompt "fpm> " \
     --bind "tab:toggle+down,ctrl-u:half-page-up,ctrl-d:half-page-down" \
@@ -18,18 +16,25 @@ _sk() {
     "$@"
 }
 
-_require_sk() {
-  command -v sk >/dev/null || { echo "skim (sk) missing"; exit 1; }
+_require_sk() { command -v sk >/dev/null || { echo "skim (sk) missing"; exit 1; }; }
+_require_pacman() { command -v pacman >/dev/null || { echo "pacman missing"; exit 1; }; }
+
+# new sync command
+fpm_sync() {
+  _require_pacman
+  sudo -v || exit 1
+  echo "🔄 Syncing pacman databases..."
+  sudo pacman -Sy
 }
 
-_require_pacman() {
-  command -v pacman >/dev/null || { echo "pacman missing"; exit 1; }
+_auto_sync() {
+  fpm_sync
 }
 
 fpm_add() {
+  _auto_sync
   _require_sk; _require_pacman
   sudo -v || exit 1
-
   pacman -Sl | \
     _sk "TAB=select • ENTER=install" --multi --preview "pacman -Si {2}" | \
     awk '{print $2}' | \
@@ -39,7 +44,6 @@ fpm_add() {
 fpm_rm() {
   _require_sk
   sudo -v || exit 1
-
   pacman -Q | \
     _sk "TAB=select • ENTER=remove" --multi --preview "pacman -Qi {1}" | \
     awk '{print $1}' | \
@@ -47,13 +51,21 @@ fpm_rm() {
 }
 
 fpm_search() {
+  _auto_sync
   _require_sk
   pacman -Sl | _sk "Search repo packages" --preview "pacman -Si {2}"
 }
 
 fpm_info() {
+  _auto_sync
   _require_sk
   pacman -Q | _sk "Inspect package" --preview "pacman -Qi {1}"
+}
+
+fpm_update() {
+  _auto_sync
+  _require_sk
+  pacman -Qu | _sk "Updates available" --preview "pacman -Si {1}"
 }
 
 fpm_files() {
@@ -68,11 +80,6 @@ fpm_orphans() {
     _sk "TAB=select • ENTER=remove orphans" --multi --preview "pacman -Qi {1}" | \
     awk '{print $1}' | \
     xargs -r sudo pacman -Rns --
-}
-
-fpm_upd() {
-  _require_sk
-  pacman -Qu | _sk "Updates available" --preview "pacman -Si {1}"
 }
 
 fpm_file() {
@@ -100,15 +107,8 @@ fpm_svc() {
     _sk "systemd services" --preview "systemctl status {1} --no-pager"
 }
 
-fpm_cache() {
-  _require_sk
-  sudo -v || exit 1
-  ls -1 "$cache_dir" | \
-    _sk "TAB=select • ENTER=delete" --multi --preview "ls -lh $cache_dir/{1}" | \
-    xargs -r -I{} sudo rm -v "$cache_dir/{}"
-}
 
-fpm_cachex() {
+fpm_cache() {
   _require_sk
   sudo -v || exit 1
   while true; do
@@ -121,6 +121,7 @@ fpm_cachex() {
 fpm_bulk() {
   _require_sk
   ACTION=$(printf "%s\n" \
+    "Sync pacman databases" \
     "Install packages" \
     "Remove packages" \
     "Search repository packages" \
@@ -136,43 +137,40 @@ fpm_bulk() {
     "Clean cache (interactive)" \
     | _sk "Select action")
   case "$ACTION" in
+    "Sync pacman databases") fpm_sync ;;
     "Install packages") fpm_add ;;
     "Remove packages") fpm_rm ;;
     "Search repository packages") fpm_search ;;
     "Inspect installed packages") fpm_info ;;
     "List files of installed packages") fpm_files ;;
     "Remove orphan dependencies") fpm_orphans ;;
-    "Show available updates") fpm_upd ;;
+    "Show available updates") fpm_update ;;
     "Package providing a file (repo)") fpm_file ;;
     "Package owning a file (system)") fpm_own ;;
     "Browse repository") fpm_repo ;;
     "Systemd services browser") fpm_svc ;;
-    "Clean cache (simple)") fpm_cache ;;
-    "Clean cache (interactive)") fpm_cachex ;;
+    "Clean cache (interactive)") fpm_cache ;;
   esac
 }
 
 fpm_help() {
 cat <<EOF
-fpm - fuzzy pacman wrapper using skim (sk)
-
-Usage:
-  fpm <command>
+fpm - fuzzy pacman wrapper
 
 Commands:
+  sync      Sync pacman databases (pacman -Sy)
   add       Install packages
   rm        Remove packages
   search    Search repository
   info      Inspect installed packages
-  files     List files of a package
+  update    Show updates
+  files     List package files
   orphans   Remove orphan dependencies
-  upd       Show updates
   file      Repo file provider lookup
   own       Installed file owner lookup
   repo      Browse repositories
   svc       Browse systemd services
   cache     Clean pacman cache
-  cachex    Interactive cache cleaning
   bulk      Bulk menu
   help      Show help
 EOF
@@ -182,19 +180,19 @@ _main() {
   if [ $# -eq 0 ]; then fpm_help; return; fi
   cmd="$1"; shift
   case "$cmd" in
+    sync) fpm_sync ;;
     add) fpm_add ;;
     rm) fpm_rm ;;
     search) fpm_search ;;
     info) fpm_info ;;
+    update) fpm_update ;;
     files) fpm_files ;;
     orphans) fpm_orphans ;;
-    upd) fpm_upd ;;
     file) fpm_file ;;
     own) fpm_own ;;
     repo) fpm_repo ;;
     svc) fpm_svc ;;
     cache) fpm_cache ;;
-    cachex) fpm_cachex ;;
     bulk) fpm_bulk ;;
     help|-h|--help) fpm_help ;;
     *) echo "Unknown command: $cmd"; fpm_help; exit 1 ;;

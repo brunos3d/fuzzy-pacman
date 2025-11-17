@@ -67,7 +67,7 @@ fpm orphans
 ### Show available updates
 
 ```
-fpm upd
+fpm update
 ```
 
 ### Search which package provides a file (from repos)

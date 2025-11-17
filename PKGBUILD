@@ -1,5 +1,5 @@
 pkgname=fuzzy-pacman
-pkgver=1.1.0
+pkgver=2.0.0
 pkgrel=1
 pkgdesc="Fuzzy pacman wrapper using skim (sk). Provides interactive package and system management via subcommands."
 arch=('any')

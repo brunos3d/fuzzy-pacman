@@ -1,6 +1,6 @@
 pkgbase = fuzzy-pacman
 	pkgdesc = Fuzzy pacman wrapper using skim (sk). Provides interactive package and system management via subcommands.
-	pkgver = 1.1.0
+	pkgver = 2.0.0
 	pkgrel = 1
 	url = https://github.com/brunos3d/fuzzy-pacman
 	arch = any
